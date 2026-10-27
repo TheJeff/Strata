@@ -7,7 +7,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
 #include <intrin.h>
 #include <immintrin.h>
 #elif defined(__x86_64__) || defined(__i386__)

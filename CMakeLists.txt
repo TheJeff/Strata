@@ -592,6 +592,12 @@ if(STRATA_ENABLE_CUDA OR STRATA_ENABLE_HIP)
     src/core/expert_cache.cpp src/core/native_head.cpp src/core/native_dense.cpp src/core/verify.cpp src/core/mtp.cpp
     src/core/conversation_snapshot.cpp src/core/conversation_state.cpp src/core/conversation_memory.cpp src/core/peer_experts.cpp
     src/core/arch_defaults.cpp src/core/nv_defaults.cpp src/core/vmm.cpp src/core/conversation_file.cpp)
+  # Windows ARM64 port: clang 19 (the VS 2022 LLVM toolset) mis-emits the address of a return block in the SEH
+  # epilogue at /O2 ("assembler label '' can not be undefined" on `add x0, x0, .LBB..`), and these two TUs hit it.
+  # /O1 avoids the codegen path; the rest of the engine keeps /O2.
+  if(MSVC AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(ARM64|arm64|aarch64)$")
+    set_source_files_properties(src/core/layer.cpp src/core/verify.cpp PROPERTIES COMPILE_OPTIONS "/O1")
+  endif()
   target_include_directories(strata_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_link_libraries(strata_engine PUBLIC strata_core strata_kernels strata_kernels_cpu ${_strata_gpu_runtime_target})
   if(STRATA_BUILD_TESTS AND STRATA_ENABLE_CUDA AND NOT STRATA_HIP_GFX906)
