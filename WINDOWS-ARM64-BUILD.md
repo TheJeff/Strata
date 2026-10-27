@@ -76,8 +76,8 @@ That is in line with the DGX Spark reference runs in PR #2419 (58.8–66 tok/s).
 
 ## Known gaps
 
-- `strata-vision.exe` (the picture reader) is a separate CMake project; see
-  `vision-arm64.bat`. Until it is packaged the app keeps "Read pictures" off.
+- `strata-vision.exe` (the picture reader) is built by `vision-arm64.bat` and included in the package, but
+  picture reading has not been tested on ARM64; turn "Read pictures" off if it misbehaves.
 - The package is unsigned (`signature: null`) — accepted, since signature checking is
   not enforced by default.
 - `Settings → Update engine` consults the signed feed, which has no `windows-arm64`

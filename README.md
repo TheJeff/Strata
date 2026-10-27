@@ -35,6 +35,13 @@ agents. Your chats and files stay on your PC.
 
 Version 0.2.2 · engine 0.1.47
 
+> **This is a fork of [Niko1221/Strata](https://github.com/Niko1221/Strata).** The app, the engine and these docs are
+> upstream's and unchanged. The one addition is a build of the engine for **Windows on ARM** (NVIDIA RTX Spark / GB10),
+> which upstream does not ship: its engine packages cover Windows x86-64, Linux x86-64 and macOS ARM only, and the app
+> installs prebuilt packages rather than compiling, so a Windows-ARM64 PC stops at "no engine for this PC".
+> Branch `ferstar-gb10-022`: [what changed and why](#this-fork-windows-on-arm). Everything below that does not mention
+> ARM64 is upstream's documentation and applies as written.
+
 ## What you need
 
 **You need at least 32 GB of RAM and graphics memory (VRAM) together.** On a Mac or a Ryzen AI Max, that is the unified
@@ -288,6 +295,68 @@ memory); the processor reader needs about 50 s per picture there, so it runs onl
   `"parallel": 2` in the config ([BATCHING.md](docs/BATCHING.md)). On a 12 GB card this makes each answer slower.
 - Strata reads the first message of a chat in full, about 1 minute per 30,000 tokens. Follow-up messages start in seconds.
 - Where your chats are stored and the whole API: [docs/INSTALL.md](docs/INSTALL.md#where-things-are-stored), [docs/DETAILS.md](docs/DETAILS.md#using-it).
+
+## This fork: Windows on ARM
+
+This repository is [TheJeff/Strata](https://github.com/TheJeff/Strata), a fork of
+[Niko1221/Strata](https://github.com/Niko1221/Strata). The app, the engine and the documentation are upstream's. This
+fork adds a way to build and install the engine on Windows on ARM, for NVIDIA's RTX Spark N1X (GB10, sm_121), and
+nothing else.
+
+Branch `ferstar-gb10-022` is upstream `main` at 011c9e60 (0.2.2, engine 0.1.47), plus the community ARM64 port from
+PR #3622 (`ferstar/gb10-022`, d891f006), plus the changes listed below. **The ARM64 port is ferstar's work, not this
+fork's** — it is what lets the engine compile for aarch64 at all, and it is the part that should be credited. What
+follows is what was still missing on Windows.
+
+### Why it exists
+
+Upstream publishes engine packages for `windows-x86_64`, `linux-x86_64` and `macos-arm64` only. The app installs a
+prebuilt package and never compiles, and Control refuses a package whose platform is not in `BACKEND_MATRIX`. On a
+Windows-ARM64 machine those two facts together mean the app reports "no engine for this PC", even though the hardware
+runs the model comfortably (61.9 tok/s, below). DGX Spark users on Linux get around it by compiling the ARM64 port
+from source; Windows had no equivalent route.
+
+### What changed, and why
+
+| File | Change | Why |
+| --- | --- | --- |
+| `src/kernels/cpu/expert_layout.cpp` | the `<intrin.h>` / `<immintrin.h>` include is gated on `_MSC_VER && (_M_X64 \|\| _M_IX86)` instead of `_MSC_VER` | clang-cl defines `_MSC_VER` on ARM64 too, so the x86 intrinsic headers were pulled in and the file did not compile |
+| `CMakeLists.txt` | `src/core/layer.cpp` and `src/core/verify.cpp` compile with `/O1` when MSVC and the target is ARM64; everything else stays `/O2` | clang 19 (the VS 2022 LLVM ARM64 toolset) mis-emits the address of a return block in the SEH epilogue at `/O2`: `assembler label '' can not be undefined`, from `add x0, x0, .LBB…` |
+| `strata_control/targets.py` | `windows-arm64` added to `BACKEND_MATRIX` under `cuda` and `cpu` | Control refuses any component on a platform the matrix does not list, so a correct arm64 package could not be activated. The installed copy under `…\Programs\Strata\control\strata_control\` was patched the same way |
+| `configure-arm64.bat`, `build-arm64.bat`, `vision-arm64.bat` | configure and build through `vcvarsall arm64`, clang-cl 19, CUDA 13.4 arm64 `nvcc` and `CMAKE_CUDA_ARCHITECTURES=121` | upstream's build files assume an x86-64 MSVC environment and an x86 host compiler |
+| `package-arm64.py` | writes the engine into the app's component folder with `BUILD.json` and `engine-component.json` (schema 2, `platform: windows-arm64`, SHA-256 per file) | the app loads only components that carry that manifest |
+| `WINDOWS-ARM64-BUILD.md` | the runbook: toolchain versions, commands, package layout, measured numbers, known gaps | so the build is repeatable rather than a one-off |
+
+The x86-64, Mac, HIP and SYCL paths are untouched. The `/O1` rule fires only for MSVC on ARM64, the include guard is
+narrower than before (x86 behaviour unchanged), and the matrix change only adds a platform.
+
+### What was measured
+
+RTX Spark N1X (GB10, sm_121, 128 GB unified memory), Windows 11 ARM64, CUDA 13.4.1, clang-cl 19.1.5, engine built from
+this branch. Qwen3.8-Flash-Next IQ3_S (GSQ-RCO), 256K context, `--resident-experts`, MTP on, greedy, 120 max tokens,
+2026-10-22:
+
+- 61.9 tok/s decode, 94.1 tok/s prompt on a 61-token request
+- MTP draft 38 of 44 accepted
+- 46.84 GiB of experts in VRAM, 47.2 GiB free with the model loaded
+
+That is in the range of the DGX Spark runs in PR #2419 (58.8-66 tok/s), on a Windows build upstream does not test.
+
+### Limits
+
+- The package is unsigned (`signature: null`). Signature checking is off by default, so it loads.
+- The signed update feed has no `windows-arm64` entry, so `Settings → Update engine` will not replace this package.
+  Rebuild and re-run `package-arm64.py` after pulling newer upstream.
+- `/O1` on those two files costs some decode speed against a clean `/O2` build. A newer clang, or MSVC for those two
+  files, would recover it.
+- `strata-vision.exe` builds and is included in the package, but picture reading has not been tested on ARM64.
+- Not tested: Linux aarch64 (ferstar's port covers it), HIP and SYCL on ARM, and the app's installer flow on ARM64.
+- The translated READMEs (`README.de.md` and the others) are upstream's and do not carry this fork's notes.
+
+### Building it
+
+`configure-arm64.bat`, `build-arm64.bat`, `vision-arm64.bat`, then `package-arm64.py`. Details, toolchain paths and
+the pinned ggml tree: [WINDOWS-ARM64-BUILD.md](WINDOWS-ARM64-BUILD.md).
 
 ## Build from source
 
