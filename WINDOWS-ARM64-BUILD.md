@@ -74,6 +74,39 @@ greedy, 120 max tokens:
 
 That is in line with the DGX Spark reference runs in PR #2419 (58.8–66 tok/s).
 
+## After every Control update: re-apply the platform patch
+
+The app and Terminal ship their own Control, and a Control update **overwrites**
+`strata_control/targets.py` and `feed.py`, which drops this fork's platform entries
+and leaves Control refusing the package ("No engine for this PC", `usable: false`).
+Observed on the 2026-11-02 update to Control 0.1.55. Re-apply both edits in the
+installed copy (`C:\Users\imkoa\AppData\Local\Programs\Strata\control\strata_control\`):
+
+- `targets.py`: `"cuda": ("windows-x86_64", "windows-arm64", "linux-x86_64", "linux-aarch64")`
+- `feed.py`: add `"windows-arm64"` to `PLATFORMS`
+
+Then check it with the bundled interpreter:
+
+    cd /c/Users/imkoa/AppData/Local/Programs/Strata/control
+    ./python/python.exe -c "import sys; sys.path.insert(0,'.'); from strata_control import engine_component as ec; s=ec.status(); print(s['usable'], (s['engine'] or {}).get('version'), s['notice'])"
+
+Expect `True 0.1.47 None`. Restart the app afterwards; it caches the pre-patch state.
+
+## Upstream as of 2026-11-02 (app 0.2.9, engine 0.1.55)
+
+- The stable feed has no aarch64 package for Windows — platforms are `windows-x86_64`,
+  `linux-x86_64`, `macos-arm64` only. Nothing to download for this box.
+- There *is* a Linux ARM64 feed (`strata-feed-linux-aarch64.json`) with engine and
+  DeepSeek packages for `linux-aarch64`, `sm_121`+`compute_121`, since 0.2.7.1. Upstream's
+  ARM64 work was rewritten for DGX Spark on Linux; PR #3622 was **closed unmerged**, and
+  `windows-arm64` appears nowhere in upstream's `CMakeLists.txt` or `targets.py`.
+- A rebuild would be a re-port onto main (`c62d5e3`, 1310 commits ahead of our base), not a
+  rebase: 1258 files changed, `CMakeLists.txt` +571 and `verify.cpp` +924 lines, and the
+  `<immintrin.h>` gate in `expert_layout.cpp` is still `#if defined(_MSC_VER)` on main, so
+  fix 1 is still needed and the `/O1` workaround has to be re-validated against the newer
+  tree. Gains would be the 0.1.53+ `STRATA_SM121_PERF` defaults (upstream measured 1.20x
+  prompt speed on IQ3_S on a Spark, decode unchanged) and the 0.1.55 fixes.
+
 ## Known gaps
 
 - `strata-vision.exe` (the picture reader) is built by `vision-arm64.bat` and included in the package, but
