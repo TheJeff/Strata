@@ -112,6 +112,42 @@ there is no DeepSeek GGUF set on this box. The offered sets are 239 GB (IQ1_M), 
 exist on ARM (they are `__x86_64__`-gated), so the CPU lane runs ggml-cpu's NEON dots — same answers,
 unknown speed. Upstream's DGX Spark runs (Linux) report 15 to 26 tok/s decode on UD-IQ1_S.
 
+## DeepSeek Coder set (IST-DASLab's Coder GGUF, added 2026-11-02)
+
+`ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF` is a DeepSeek-V4.1-Flash set with half of every layer's
+384 experts pruned (192 kept), IQ2_XXS, for code and agent work: 72.1 GB of model in five shards plus the 110.6 GB
+Engram (183.7 GB, revision `54229d38`). Control 0.1.55 knows only the non-Coder ISTA-DASLab repo and Unsloth's UD
+sets, and it matches sets by exact file name + size + SHA-256, so a folder of these files got
+"this model type is not supported by the Strata engine / the file has no usable tokenizer / this is not a model size
+Strata knows" (the local-GGUF checker in `strata_control/models.py` also only accepts Qwen's `qwen4exp` arch — the
+DeepSeek path is a separate one).
+
+Taught Control the set with `patch-control-coder.py` (idempotent, run it after every Control update):
+
+    <control>/python/python.exe C:/Projects/strata-arm/patch-control-coder.py
+
+It adds the repository revision and its five shard pins to `setup.py` (`HF_REVISIONS`, `REPO_PINS`,
+`DSV41_CODER_FILES`, `DSV41_ALL_FILES`), a size `IST-DAS-Coder-2.00bpw` to the DeepSeek family
+(`layout: six`, `meta_from_set: True`, no shipped expert profile), the fit numbers to
+`strata_control/dsv41_fit.py`, the pins to `strata_control/dsv41_sets.py` (so the app's "I already have the model"
+preview recognises the folder, including a Hugging Face snapshot whose shards sit in `IQ2_XXS/` and whose Engram is
+one level up), and the `models.py` fallback that looks one folder deeper.
+
+Verified on this box:
+
+- `models.plan_import(<snapshot>)` -> no issues, "This is DeepSeek-V4.1-Flash, IST-DAS Coder 2.00 bpw: all 5 model
+  files are here, and the n-gram table", `model_dir` = the `IQ2_XXS` folder.
+- `strata launch --family deepseek41 --model IST-DAS-Coder-2.00bpw --model-path <snapshot> --plan` -> nothing to
+  download, fits: 15,360 of 15,360 experts (66 GB) on the card.
+- Packed with `tools/dsv41/pack_gguf.py` (24,542 tensors, Engram 2 layers x 24 hash columns, vision tower) and ran
+  `strata-dsv41` 0.1.55: 66.23 GB of experts in VRAM with 29.4 GB VRAM left, prompt 52 tokens at 27.2 tok/s,
+  decode 150 tokens at 21.7 tok/s, Engram reads 4.1 ms/token (`--experts 6`). The answer was coherent reasoning
+  text, cut by the 150-token limit.
+
+Launch it from the Terminal (the files stay where they are):
+
+    strata launch --family deepseek41 --model ist-das-coder-2.00bpw --model-path "<snapshot folder>" --yes
+
 ## After every Control update: re-apply the platform patch
 
 The app and Terminal ship their own Control, and a Control update **overwrites**
