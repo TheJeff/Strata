@@ -150,7 +150,7 @@ static bool own_ok(int type, int impl) {
 // the AMD family (0x19 Zen 3/4, 0x1A Zen 5), 0 on any other vendor or if it cannot be read
 static int amd_family() {
     static const int fam = [] {
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
         int r[4];
         __cpuid(r, 0);
         char v[13];

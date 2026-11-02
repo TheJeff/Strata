@@ -22,7 +22,7 @@ class ComponentError(RuntimeError):
 #: is explicit that Windows SYCL and Intel Macs are not supported rather than merely untested.
 BACKEND_MATRIX: dict[str, tuple[str, ...]] = {
     "metal": ("macos-arm64",),
-    "cuda": ("windows-x86_64", "linux-x86_64", "linux-aarch64"),   # linux-aarch64: the NVIDIA DGX Spark (GB10, sm_121) only
+    "cuda": ("windows-x86_64", "windows-arm64", "linux-x86_64", "linux-aarch64"),   # linux-aarch64: the NVIDIA DGX Spark (GB10, sm_121) only; windows-arm64: the same GB10 under Windows-on-ARM (self-built package, no feed entry)
     "hip": ("windows-x86_64", "linux-x86_64"),
     "sycl": ("linux-x86_64",),
     "cpu": ("macos-arm64", "macos-x86_64", "windows-x86_64", "linux-x86_64"),

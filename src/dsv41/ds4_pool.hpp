@@ -25,8 +25,12 @@
 namespace strata::ds4 {
 
 inline void cpu_relax() {
-#if defined(_MSC_VER)
+#if defined(__CUDA_ARCH__)
+    /* nothing: the device pass only parses this */
+#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
     _mm_pause();
+#elif defined(_M_ARM64) || defined(__aarch64__)
+    __yield();                       /* Windows-on-ARM (GB10) and other ARM64: MSVC / clang intrinsic */
 #elif defined(__x86_64__) || defined(_M_X64)
     __builtin_ia32_pause();
 #endif
