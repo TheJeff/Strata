@@ -168,6 +168,20 @@ Note that the app's own "Download & load" for a DeepSeek size installs into `mod
 downloads whatever is not there; to use files you already have, go through "Use a local GGUF…" (which passes the
 folder as `--gguf-dir`), or call `strata_install` with `gguf_dir`.
 
+Three more setup problems met while installing the Coder set (all patched in `patch-control-coder.py`):
+
+- `--gguf-dir` + a data folder elsewhere: the pack is built in `<data>\packs\<tag>` with paths relative to it, and the
+  check afterwards resolves them from the model folder, so a pack built for files left in the Hugging Face cache came
+  out "not complete". Putting the model files in the app's own folder (hardlinks into `models\models\<tag>` and
+  `models\models\deepseek-v4.1-flash-shared`) makes setup verify them and build a pack that resolves.
+- The Engram's accepted alternate hash (the converted 2026-10-27 file) was checked *after* the repair step, so a
+  perfectly good converted Engram was re-downloaded (110 GB). The patch accepts `also` before repairing.
+- `--gpus 0` is refused for a single card ("--gpus takes two or more different GPUs"); use `--gpu 0`.
+
+Also: do not hardlink a model file into a folder setup manages and then let setup repair it - the repair writes through
+the link and changes the Hugging Face blob it points at (seen with the Engram; the blob had to be deleted and fetched
+again).
+
 ## After every Control update: re-apply the platform patch
 
 The app and Terminal ship their own Control, and a Control update **overwrites**

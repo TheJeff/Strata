@@ -155,6 +155,16 @@ EDITS = [
      'def maxwell_card(arch) -> bool:\n    """#3218: Maxwell (5.x).  No ready-made engine holds code for it; it is a source build (docs/OLDER_GPUS.md)."""\n    return 50 <= int(arch) < 60',
      'def maxwell_card(arch) -> bool:\n    """#3218: Maxwell (5.x).  No ready-made engine holds code for it; it is a source build (docs/OLDER_GPUS.md)."""\n    n = _arch_number(arch)\n    return n is not None and 50 <= n < 60',
      'n is not None and 50 <= n < 60'),
+    # --- an Engram that is the converted variant was repaired (re-downloaded) before its alternate hash was accepted; accept it first.
+    (SETUP,
+     '    digest = _hash_file(s, size)\n    if digest != sha and repair is not None and not own:',
+     '    digest = _hash_file(s, size)\n'
+     '    if digest != sha and digest in also:          # an accepted variant (the converted Engram): no repair, no download\n'
+     '        say(f"  {s.name} is the converted version ISTA-DASLab published on 2026-10-27 (the same tables in one tensor); it is used as it is")\n'
+     '        mark(s, f"sha256 {digest}")\n'
+     '        return\n'
+     '    if digest != sha and repair is not None and not own:',
+     'an accepted variant (the converted Engram): no repair'),
 ]
 
 
