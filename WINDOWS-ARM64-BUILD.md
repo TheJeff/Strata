@@ -182,6 +182,15 @@ Also: do not hardlink a model file into a folder setup manages and then let setu
 the link and changes the Hugging Face blob it points at (seen with the Engram; the blob had to be deleted and fetched
 again).
 
+Result after the fixes (2026-11-02, 20:17): `setup.py --yes --no-start --family deepseek41 --model IST-DAS-Coder-2.00bpw
+--context 8192 --vision no --gpu 0 --data-dir C:\Users\imkoa\models` finished with exit 0 — engine found in
+`Strata\install\engine-dsv41`, five shards verified, DSpark and mmproj fetched, pack written to
+`models\packs\deepseek-v4.1-flash-ist-das-coder-2.00bpw` ("every file the engine needs is there"), run config
+`Strata\install\strata-deepseek-v4.1-flash-ist-das-coder-2.00bpw.json`. Served through Control's `serve/server.py`:
+8064 of 8064 experts in VRAM (73.45 GB, 23 GB VRAM free), DSpark on, a 53-token prompt read at 63 tok/s and 83 tokens
+generated at 34 tok/s; a second request reused its prompt (139.6 tok/s) and decoded at 49.5 tok/s. Text only: the
+config was written with `--vision no`, and 8192 tokens of context (the DeepSeek default; `--context` takes up to 1M).
+
 ## After every Control update: re-apply the platform patch
 
 The app and Terminal ship their own Control, and a Control update **overwrites**
