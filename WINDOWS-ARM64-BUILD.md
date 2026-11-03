@@ -148,6 +148,26 @@ Launch it from the Terminal (the files stay where they are):
 
     strata launch --family deepseek41 --model ist-das-coder-2.00bpw --model-path "<snapshot folder>" --yes
 
+## Installing DeepSeek from the app (fixed 2026-11-02)
+
+Two more things stopped the app's install on this box, both now patched by `patch-control-coder.py`:
+
+1. **Setup crashed at step 1/7** with `ValueError: invalid literal for int() with base 10: '[N/A]'` at
+   `setup.py:1687 sm60_card`. The RTX Spark reports two devices to `nvidia-smi`: the GB10 graphics card
+   (`compute_cap` 12.1) and an **NPU** whose `compute_cap` is `[N/A]`. `gpus()` kept the NPU's arch as the string
+   `"[N/A]"` and `old_gpus_opt_in` ran `int()` on it. Fixed by normalising a non-numeric capability to `"0"` when the
+   card list is built and by making `sm60_card` / `maxwell_card` return False for it.
+2. **Step 4/7 "DeepSeek's engine is not available for this computer yet"**: setup looks for the DeepSeek engine in
+   `<home>/engine-dsv41` (the app's `STRATA_INSTALL_DIR`, i.e. `Strata\install`) or, without that variable, in the
+   Control folder (`Programs\Strata\control\engine-dsv41`); the feed has no `windows-arm64` DeepSeek package, so it
+   found nothing. The self-built package is now copied into both places as well as `Strata\engine-dsv41` (three copies
+   of 248 MB; the different code paths look in different folders). The app's install then verified the existing
+   Hugging Face files by hash instead of downloading them.
+
+Note that the app's own "Download & load" for a DeepSeek size installs into `models\deepseek-v4.1-flash-<size>` and
+downloads whatever is not there; to use files you already have, go through "Use a local GGUF…" (which passes the
+folder as `--gguf-dir`), or call `strata_install` with `gguf_dir`.
+
 ## After every Control update: re-apply the platform patch
 
 The app and Terminal ship their own Control, and a Control update **overwrites**

@@ -119,7 +119,73 @@ EDITS = [
      '            pass\n'
      '    if not found:\n        return None',
      'a Hugging Face repository folder: the set\'s shards sit'),
+    # --- the RTX Spark's NPU reports compute_cap "[N/A]", which crashed setup at step 1/7 (ValueError: invalid literal for
+    # int() with base 10: '[N/A]') before any model could be installed.  Normalise it when the card list is built, and make
+    # the two capability tests tolerate it.
+    (SETUP,
+     '            idx, name, mem, cc, drv = [x.strip() for x in line.split(",")]\n            try:',
+     '            idx, name, mem, cc, drv = [x.strip() for x in line.split(",")]\n'
+     '            cc = cc.replace(".", "")\n'
+     '            cc = cc if cc.isdigit() else "0"       # a device with no compute capability (the RTX Spark\'s NPU beside its GPU) reports [N/A]\n'
+     '            try:',
+     'cc = cc if cc.isdigit() else "0"'),
+    (SETUP,
+     '                found.append({"index": int(idx), "name": name, "vram_gb": shared, "arch": cc.replace(".", ""),',
+     '                found.append({"index": int(idx), "name": name, "vram_gb": shared, "arch": cc,',
+     '"vram_gb": shared, "arch": cc,'),
+    (SETUP,
+     '            found.append({"index": int(idx), "name": name, "vram_gb": mem_gb, "arch": cc.replace(".", ""),',
+     '            found.append({"index": int(idx), "name": name, "vram_gb": mem_gb, "arch": cc,',
+     '"vram_gb": mem_gb, "arch": cc,'),
+    (SETUP,
+     'def sm60_card(arch) -> bool:\n    return 60 <= int(arch) <= 70',
+     'def _arch_number(arch):\n'
+     '    """The compute capability as an int, or None when nvidia-smi gives none (a card without one reports "[N/A]")."""\n'
+     '    try:\n'
+     '        return int(str(arch).strip())\n'
+     '    except (TypeError, ValueError):\n'
+     '        return None\n'
+     '\n'
+     '\n'
+     'def sm60_card(arch) -> bool:\n'
+     '    n = _arch_number(arch)\n'
+     '    return n is not None and 60 <= n <= 70',
+     'def _arch_number(arch):'),
+    (SETUP,
+     'def maxwell_card(arch) -> bool:\n    """#3218: Maxwell (5.x).  No ready-made engine holds code for it; it is a source build (docs/OLDER_GPUS.md)."""\n    return 50 <= int(arch) < 60',
+     'def maxwell_card(arch) -> bool:\n    """#3218: Maxwell (5.x).  No ready-made engine holds code for it; it is a source build (docs/OLDER_GPUS.md)."""\n    n = _arch_number(arch)\n    return n is not None and 50 <= n < 60',
+     'n is not None and 50 <= n < 60'),
 ]
+
+
+def patch_ui() -> int:
+    """The app's version picker has a hardcoded catch-all group titled "Qwen3.6 models" that holds every size whose family
+    is not in its own list, so DeepSeek's sizes appeared under a Qwen3.6 heading.  Add a DeepSeek group to that list.
+    The bundle's file name changes with every app update, so this scans them all."""
+    anchor = '{id:"unsloth",title:"Unsloth models",families:["unsloth"]}]'
+    addition = '{id:"unsloth",title:"Unsloth models",families:["unsloth"]},{id:"deepseek",title:"DeepSeek models",families:["deepseek41"]}]'
+    problems = 0
+    found = False
+    for path in sorted((CONTROL.parent / "host" / "dist" / "assets").glob("index-*.js")):
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            print(f"MISSING FILE {path}: {exc}")
+            problems += 1
+            continue
+        if 'title:"DeepSeek models"' in text:
+            print(f"skip   {path.name}: DeepSeek models group")
+            found = True
+            continue
+        if anchor not in text:
+            continue
+        path.write_text(text.replace(anchor, addition, 1), encoding="utf-8")
+        print(f"patch  {path.name}: DeepSeek models group")
+        found = True
+    if not found:
+        print("ANCHOR host/dist/assets/index-*.js: version-picker group list not found")
+        problems += 1
+    return problems
 
 
 def main() -> int:
@@ -140,6 +206,7 @@ def main() -> int:
             continue
         path.write_text(text.replace(anchor, replacement, 1), encoding="utf-8")
         print(f"patch  {path.name}: {marker[:60]}")
+    problems += patch_ui()
     print("done" if not problems else f"{problems} problem(s): a Control version moved the code these edits target")
     return 1 if problems else 0
 
